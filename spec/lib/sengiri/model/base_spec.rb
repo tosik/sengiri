@@ -1,20 +1,41 @@
 require 'spec_helper'
 
+ENV['SENGIRI_ENV'] = 'rails_env'
+
 class SengiriModel < Sengiri::Model::Base
-  sharding_group 'sengiri', {
-      'sengiri_shard_1'=> {
+  sharding_group 'sengiri', confs: {
+      'sengiri_shard_1_rails_env'=> {
         adapter: "sqlite3",
         database: "spec/db/sengiri_shard_1.sqlite3",
         pool: 5,
         timeout: 5000,
       },
-      'sengiri_shard_second'=> {
+      'sengiri_shard_second_rails_env'=> {
         adapter: "sqlite3",
         database: "spec/db/sengiri_shard_2.sqlite3",
         pool: 5,
         timeout: 5000,
       },
     }
+end
+
+class SengiriModelWithSuffix < Sengiri::Model::Base
+  sharding_group 'sengiri', {
+    confs: {
+      'sengiri_shard_1_rails_env_suffix'=> {
+        adapter: "sqlite3",
+        database: "spec/db/sengiri_shard_secondary_1.sqlite3",
+        pool: 5,
+        timeout: 5000,
+      },
+      'sengiri_shard_second_rails_env_suffix'=> {
+        adapter: "sqlite3",
+        database: "spec/db/sengiri_shard_secondary_2.sqlite3",
+        pool: 5,
+        timeout: 5000,
+      },
+    },
+    suffix: 'suffix' }
 end
 
 describe SengiriModel do
@@ -75,6 +96,50 @@ describe SengiriModel do
         end
       rescue
         expect( SengiriModel.all.broadcast.count ).to eq 0
+      end
+    end
+  end
+
+  context 'has no databases' do
+    it 'should raise an error' do
+      expect {
+        class SengiriModelWithoutDatabases < Sengiri::Model::Base
+          sharding_group 'sengiri', confs: {}
+        end
+      }.to raise_error
+    end
+  end
+
+  context 'is included in module' do
+    let(:sengiri_model) {
+      module SengiriModule
+        class SengiriModel < Sengiri::Model::Base
+          sharding_group 'sengiri', confs: {
+              'sengiri_shard_1_rails_env'=> {
+                adapter: "sqlite3",
+                database: "spec/db/sengiri_shard_1.sqlite3",
+                pool: 5,
+                timeout: 5000,
+              },
+              'sengiri_shard_second_rails_env'=> {
+                adapter: "sqlite3",
+                database: "spec/db/sengiri_shard_2.sqlite3",
+                pool: 5,
+                timeout: 5000,
+              },
+            }
+        end
+      end
+    }
+    it 'should be normal' do
+      expect { sengiri_model }.not_to raise_error
+    end
+    context 'when sengiri_model is evaluated' do
+      before do
+        sengiri_model
+      end
+      it 'should create a new shard class in the module' do
+        expect { SengiriModule::SengiriModel1 }.not_to raise_error
       end
     end
   end
